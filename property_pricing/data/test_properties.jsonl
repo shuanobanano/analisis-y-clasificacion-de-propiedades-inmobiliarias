@@ -1,0 +1,2 @@
+{"id": 1, "price": 150000, "surface_covered": 80, "surface_total": 90, "rooms": 3, "floor": 5, "expenses": 20000, "neighborhood": "Palermo", "property_type": "apartment"}
+{"id": 2, "price": 85000, "surface_covered": 45, "surface_total": 50, "rooms": 2, "floor": 2, "expenses": 12000, "neighborhood": "Recoleta", "property_type": "apartment"}
