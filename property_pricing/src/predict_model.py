@@ -41,19 +41,50 @@ class PropertyPricePredictor:
 
     def __init__(self, model_path: Optional[str] = None) -> None:
         base_models_path = MODELS_PATH
-        model_file = Path(model_path) if model_path else base_models_path / "price_classifier.pkl"
-        scaler_file = base_models_path / "scaler.pkl"
-        columns_file = base_models_path / "model_columns.pkl"
-        encoders_file = base_models_path / "encoders.pkl"
+        bundle_file = base_models_path / "price_classifier_bundle.pkl"
 
-        required_files = [model_file, scaler_file, columns_file, encoders_file]
-        if not all(file.exists() for file in required_files):
-            raise FileNotFoundError("❌ Error: Modelo no encontrado. Ejecute train_model.py primero")
+        self.model_columns: List[str]
+        self.encoders: Dict[str, object]
 
-        self.model = joblib.load(model_file)
-        self.scaler = joblib.load(scaler_file)
-        self.model_columns: List[str] = joblib.load(columns_file)
-        self.encoders: Dict[str, object] = joblib.load(encoders_file)
+        if model_path:
+            model_file = Path(model_path)
+            scaler_file = base_models_path / "scaler.pkl"
+            columns_file = base_models_path / "model_columns.pkl"
+            encoders_file = base_models_path / "encoders.pkl"
+
+            required_files = [model_file, scaler_file, columns_file, encoders_file]
+            if not all(file.exists() for file in required_files):
+                raise FileNotFoundError(
+                    "❌ Error: Modelo no encontrado. Ejecute train_model.py primero"
+                )
+
+            self.model = joblib.load(model_file)
+            self.scaler = joblib.load(scaler_file)
+            self.model_columns: List[str] = joblib.load(columns_file)
+            self.encoders: Dict[str, object] = joblib.load(encoders_file)
+        elif bundle_file.exists():
+            bundle = joblib.load(bundle_file)
+            self.model = bundle["model"]
+            self.scaler = bundle["scaler"]
+            self.model_columns = list(bundle["feature_columns"])
+            self.encoders = bundle["encoders"]
+        else:
+            model_file = base_models_path / "price_classifier.pkl"
+            scaler_file = base_models_path / "scaler.pkl"
+            columns_file = base_models_path / "model_columns.pkl"
+            encoders_file = base_models_path / "encoders.pkl"
+
+            required_files = [model_file, scaler_file, columns_file, encoders_file]
+            if not all(file.exists() for file in required_files):
+                raise FileNotFoundError(
+                    "❌ Error: Modelo no encontrado. Ejecute train_model.py primero"
+                )
+
+            self.model = joblib.load(model_file)
+            self.scaler = joblib.load(scaler_file)
+            self.model_columns = joblib.load(columns_file)
+            self.encoders = joblib.load(encoders_file)
+
         self.class_labels = list(self.model.classes_)
 
     def _validate_payload(self, property_data: Dict) -> Dict[str, float]:

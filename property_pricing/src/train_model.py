@@ -34,6 +34,7 @@ SCALER_PATH = MODELS_PATH / "scaler.pkl"
 COLUMNS_PATH = MODELS_PATH / "model_columns.pkl"
 CONFUSION_MATRIX_PATH = MODELS_PATH / "confusion_matrix.png"
 METADATA_PATH = MODELS_PATH / "metadata.json"
+TEST_BUNDLE_PATH = MODELS_PATH / "price_classifier_bundle.pkl"
 MODEL_VERSION = "1.1.0"
 
 RANDOM_FOREST_PARAMS: Dict[str, object] = {
@@ -221,10 +222,34 @@ def _serialize_metadata(metadata: Dict[str, object]) -> None:
     LOGGER.info("Model metadata saved to %s", METADATA_PATH)
 
 
+def _export_model_bundle(
+    model: RandomForestClassifier,
+    scaler: StandardScaler,
+    feature_columns: Iterable[str],
+    encoders: Dict[str, object],
+    percentiles: Dict[str, float],
+    metadata: Dict[str, object],
+) -> Path:
+    """Bundle key artefacts into a single file for downstream testing."""
+
+    bundle_payload = {
+        "model": model,
+        "scaler": scaler,
+        "feature_columns": list(feature_columns),
+        "encoders": encoders,
+        "percentiles": percentiles,
+        "metadata": metadata,
+        "exported_at": datetime.utcnow().isoformat() + "Z",
+    }
+    joblib.dump(bundle_payload, TEST_BUNDLE_PATH)
+    LOGGER.info("Testing bundle saved to %s", TEST_BUNDLE_PATH)
+    return TEST_BUNDLE_PATH
+
+
 def train_model() -> Tuple[RandomForestClassifier, Dict[str, float]]:
     """Train the RandomForest classifier and persist all artefacts."""
 
-    features, target, feature_columns, _, percentiles = prepare_data()
+    features, target, feature_columns, encoders, percentiles = prepare_data()
     
     # ✅ VALIDACIÓN CRÍTICA: Verificar que hay datos para entrenar
     if len(features) == 0:
@@ -329,6 +354,7 @@ def train_model() -> Tuple[RandomForestClassifier, Dict[str, float]]:
         "feature_importances": feature_importances,
     }
     _serialize_metadata(metadata)
+    _export_model_bundle(final_model, scaler, feature_columns, encoders, percentiles, metadata)
 
     return final_model, percentiles
 
