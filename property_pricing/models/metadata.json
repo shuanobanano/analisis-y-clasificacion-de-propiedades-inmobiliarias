@@ -1,0 +1,148 @@
+{
+  "model_version": "1.1.0",
+  "trained_at": "2025-10-21T01:12:21.958867Z",
+  "hyperparameters": {
+    "n_estimators": 50,
+    "max_depth": 15,
+    "min_samples_split": 10,
+    "min_samples_leaf": 5,
+    "max_features": "sqrt",
+    "bootstrap": true,
+    "random_state": 42,
+    "n_jobs": -1
+  },
+  "early_stopping": {
+    "best_estimators": 50,
+    "best_validation_accuracy": 0.9993662864385298,
+    "history": [
+      {
+        "n_estimators": 50.0,
+        "validation_accuracy": 0.9993662864385298
+      },
+      {
+        "n_estimators": 100.0,
+        "validation_accuracy": 0.9993662864385298
+      },
+      {
+        "n_estimators": 150.0,
+        "validation_accuracy": 0.9995775242923531
+      }
+    ]
+  },
+  "dataset": {
+    "total_samples": 29588,
+    "train_samples": 23670,
+    "test_samples": 5918,
+    "feature_columns": [
+      "price",
+      "surface_covered",
+      "surface_total",
+      "floor",
+      "rooms",
+      "expenses",
+      "price_per_m2",
+      "room_density",
+      "expenses_ratio",
+      "neighborhood",
+      "property_type"
+    ],
+    "percentiles": {
+      "p33": 6.13154960981048,
+      "p66": 10.03344481605351
+    }
+  },
+  "performance": {
+    "classification_report": "              precision    recall  f1-score   support\n\n      BARATO     1.0000    1.0000    1.0000      1979\n        CARO     1.0000    1.0000    1.0000      1873\n     REGULAR     1.0000    1.0000    1.0000      2066\n\n    accuracy                         1.0000      5918\n   macro avg     1.0000    1.0000    1.0000      5918\nweighted avg     1.0000    1.0000    1.0000      5918\n",
+    "confusion_matrix": [
+      [
+        1979,
+        0,
+        0
+      ],
+      [
+        0,
+        1873,
+        0
+      ],
+      [
+        0,
+        0,
+        2066
+      ]
+    ],
+    "cross_validation_scores": [
+      1.0,
+      0.9998310239945928,
+      0.9996620479891856,
+      0.9998309954368768,
+      0.9998309954368768
+    ],
+    "cross_validation_mean": 0.9998310125715063
+  },
+  "distribution_checks": {
+    "numeric_drift": {
+      "price": 0.009505324964095521,
+      "surface_covered": 0.002219775111752852,
+      "surface_total": 0.002219775111752852,
+      "floor": 0.0,
+      "rooms": 0.002219775111752879,
+      "expenses": 0.007090420211317962,
+      "price_per_m2": 0.0034891684856152333,
+      "room_density": 0.0,
+      "expenses_ratio": 0.0023226509023318454
+    },
+    "categorical_drift": {
+      "neighborhood": 0.048037643884817606,
+      "property_type": 0.0
+    },
+    "target_drift": {
+      "total_variation": 9.724508431166456e-05
+    }
+  },
+  "feature_importances": [
+    [
+      "price_per_m2",
+      0.6250508301477923
+    ],
+    [
+      "price",
+      0.2278263946246394
+    ],
+    [
+      "rooms",
+      0.0418245057874193
+    ],
+    [
+      "surface_total",
+      0.033445421358990826
+    ],
+    [
+      "surface_covered",
+      0.026088590392369757
+    ],
+    [
+      "expenses_ratio",
+      0.023347073930654515
+    ],
+    [
+      "expenses",
+      0.01642531925029294
+    ],
+    [
+      "neighborhood",
+      0.005991864507840997
+    ],
+    [
+      "floor",
+      0.0
+    ],
+    [
+      "room_density",
+      0.0
+    ],
+    [
+      "property_type",
+      0.0
+    ]
+  ]
+}

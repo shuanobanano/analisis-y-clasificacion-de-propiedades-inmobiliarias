@@ -94,30 +94,121 @@ def _select_columns(df: pd.DataFrame) -> pd.DataFrame:
 
 def _clean_data(df: pd.DataFrame) -> pd.DataFrame:
     initial_rows = len(df)
-    df = df.dropna()
-    df = df[(df["surface_covered"] > 0) & (df["price"] > 0)]
-    price_threshold = df["price"].quantile(0.99)
-    df = df[df["price"] <= price_threshold]
-    LOGGER.info(
-        "Cleaned dataset from %s to %s rows (price outlier threshold: %.2f)",
-        initial_rows,
-        len(df),
-        price_threshold,
-    )
-    return df
+    LOGGER.info("Initial dataset: %s rows", initial_rows)
+    
+    if initial_rows == 0:
+        LOGGER.warning("Dataset already empty before cleaning")
+        return df
 
+    # ✅ CORREGIDO: No eliminar por surface_covered/surface_total nulos inicialmente
+    # Solo eliminar filas donde price es nulo o no positivo
+    df_clean = df.dropna(subset=["price"])
+    after_dropna_price = len(df_clean)
+    LOGGER.info("After dropping NA in price: %s rows", after_dropna_price)
+    
+    # Filtrar por precio positivo
+    df_clean = df_clean[df_clean["price"] > 0]
+    after_positive_price = len(df_clean)
+    LOGGER.info("After positive price filter: %s rows", after_positive_price)
+    
+    # ✅ NUEVO: Manejar surface_covered y surface_total nulos
+    # Si surface_covered está vacío, usar surface_total como fallback
+    df_clean["surface_covered"] = df_clean["surface_covered"].fillna(df_clean["surface_total"])
+    
+    # Si surface_total está vacío, usar surface_covered como fallback  
+    df_clean["surface_total"] = df_clean["surface_total"].fillna(df_clean["surface_covered"])
+    
+    # Si ambas están vacías, usar un valor por defecto basado en rooms
+    mask_both_empty = df_clean["surface_covered"].isna() & df_clean["surface_total"].isna()
+    if mask_both_empty.any():
+        # Estimar superficie basada en número de habitaciones (aproximación)
+        default_surface = df_clean["rooms"] * 30  # 30m² por habitación como estimación
+        df_clean.loc[mask_both_empty, "surface_covered"] = default_surface
+        df_clean.loc[mask_both_empty, "surface_total"] = default_surface
+        LOGGER.info("Estimated surface for %s rows with missing surface data", mask_both_empty.sum())
+    
+    # Filtrar por superficie positiva
+    df_clean = df_clean[(df_clean["surface_covered"] > 0) & (df_clean["surface_total"] > 0)]
+    after_surface_filter = len(df_clean)
+    LOGGER.info("After surface filter: %s rows", after_surface_filter)
+    
+    # ✅ CORREGIDO: Imputar valores nulos en otras columnas numéricas
+    numeric_columns_to_impute = ["floor", "rooms", "expenses"]
+    for col in numeric_columns_to_impute:
+        if col in df_clean.columns:
+            null_count = df_clean[col].isna().sum()
+            if null_count > 0:
+                if col == "floor":
+                    df_clean[col] = df_clean[col].fillna(0)  # Planta baja por defecto
+                elif col == "rooms":
+                    df_clean[col] = df_clean[col].fillna(1)  # Mínimo 1 habitación
+                elif col == "expenses":
+                    df_clean[col] = df_clean[col].fillna(0)  # Sin expensas por defecto
+                LOGGER.info("Imputed %s null values in column '%s'", null_count, col)
+    
+    # Eliminar outliers de precio (conservador)
+    if after_surface_filter > 0:
+        price_threshold = df_clean["price"].quantile(0.95)
+        df_clean = df_clean[df_clean["price"] <= price_threshold]
+        after_outliers = len(df_clean)
+        LOGGER.info("After outlier removal: %s rows (threshold: $%.2f)", after_outliers, price_threshold)
+    else:
+        LOGGER.warning("No data left after surface filter")
+        return df_clean
+
+    LOGGER.info(
+        "Final cleaned dataset: %s rows (from original %s)",
+        len(df_clean),
+        initial_rows,
+    )
+    
+    if len(df_clean) == 0:
+        LOGGER.error("❌ Dataset is completely empty after cleaning!")
+        # Debug detallado
+        LOGGER.info("Debug info - Column analysis:")
+        for col in df.columns:
+            null_count = df[col].isnull().sum()
+            unique_count = df[col].nunique()
+            LOGGER.info("  %s: %s nulls, %s unique values", col, null_count, unique_count)
+            if null_count == len(df):
+                LOGGER.info("    ⚠️ Column '%s' is completely empty!", col)
+    
+    return df_clean
 
 def _engineer_features(df: pd.DataFrame) -> pd.DataFrame:
-    df["price_per_m2"] = df["price"] / df["surface_covered"]
+    df = df.copy()
+    
+    # ✅ MEJORADO: Calcular price_per_m2 con manejo de division por cero
+    df["price_per_m2"] = np.where(
+        df["surface_covered"] > 0,
+        df["price"] / df["surface_covered"],
+        df["price"] / df["surface_total"]  # Fallback a surface_total
+    )
+    
+    # ✅ MEJORADO: Calcular room_density con manejo de division por cero
     df["room_density"] = np.where(
         df["surface_total"] > 0,
         df["rooms"] / df["surface_total"],
         0.0,
     )
-    df["expenses_ratio"] = df["expenses"] / df["price"]
-    LOGGER.debug("Engineered features added: price_per_m2, room_density, expenses_ratio")
+    
+    # ✅ MEJORADO: Calcular expenses_ratio con manejo de division por cero
+    df["expenses_ratio"] = np.where(
+        df["price"] > 0,
+        df["expenses"] / df["price"],
+        0.0,
+    )
+    
+    LOGGER.info("Engineered 3 new features with robust calculations")
+    
+    # Verificar que no hay valores infinitos o nulos en las nuevas features
+    for feature in ["price_per_m2", "room_density", "expenses_ratio"]:
+        if df[feature].isnull().any() or np.isinf(df[feature]).any():
+            LOGGER.warning("Found invalid values in %s, cleaning...", feature)
+            df[feature] = df[feature].replace([np.inf, -np.inf], np.nan)
+            df[feature] = df[feature].fillna(0)
+    
     return df
-
 
 def _encode_categoricals(df: pd.DataFrame) -> Tuple[pd.DataFrame, Dict[str, LabelEncoder]]:
     encoders: Dict[str, LabelEncoder] = {}
@@ -135,8 +226,18 @@ def _encode_categoricals(df: pd.DataFrame) -> Tuple[pd.DataFrame, Dict[str, Labe
 
 
 def _create_target(df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.Series, Dict[str, float]]:
+    # ✅ MEJORADO: Validar que tenemos datos para crear el target
+    if df.empty:
+        raise DataPreparationError("Cannot create target: dataset is empty")
+    
+    if "price_per_m2" not in df.columns:
+        raise DataPreparationError("Cannot create target: price_per_m2 feature is missing")
+    
+    # Calcular percentiles
     p33 = df["price_per_m2"].quantile(0.33)
     p66 = df["price_per_m2"].quantile(0.66)
+    
+    LOGGER.info("Price per m² percentiles - p33: $%.2f, p66: $%.2f", p33, p66)
 
     def categorize(value: float) -> str:
         if value <= p33:
@@ -146,48 +247,67 @@ def _create_target(df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.Series, Dict[str,
         return "CARO"
 
     target = df["price_per_m2"].apply(categorize)
-    LOGGER.info("Target distribution: %s", target.value_counts(normalize=True).to_dict())
+    
+    # Log de distribución
+    target_distribution = target.value_counts()
+    LOGGER.info("Target distribution:")
+    for category, count in target_distribution.items():
+        percentage = (count / len(target)) * 100
+        LOGGER.info("  %s: %s (%.1f%%)", category, count, percentage)
+    
     return df, target, {"p33": float(p33), "p66": float(p66)}
-
 
 def prepare_data(
     csv_path: Path | None = None,
 ) -> Tuple[pd.DataFrame, pd.Series, List[str], Dict[str, LabelEncoder], Dict[str, float]]:
-    """Prepare dataset for training.
-
-    Returns the processed feature matrix, target vector, feature columns,
-    fitted label encoders, and percentile thresholds used for categorisation.
-    """
+    """Prepare dataset for training."""
 
     _ensure_directories()
     csv_path = csv_path or DATA_PATH
-    df = _load_dataset(csv_path)
-    df = _rename_columns(df)
-    df = _select_columns(df)
-    df = _clean_data(df)
-    df = _engineer_features(df)
-    df, encoders = _encode_categoricals(df)
-    df, target, percentiles = _create_target(df)
+    
+    try:
+        df = _load_dataset(csv_path)
+        df = _rename_columns(df)
+        df = _select_columns(df)
+        df = _clean_data(df)
+        
+        # ✅ VALIDACIÓN CRÍTICA: Verificar que hay datos después de la limpieza
+        if df.empty:
+            raise DataPreparationError(
+                "El dataset está vacío después de la limpieza. "
+                "Revise el archivo CSV y los criterios de limpieza."
+            )
+            
+        df = _engineer_features(df)
+        df, encoders = _encode_categoricals(df)
+        df, target, percentiles = _create_target(df)
 
-    feature_columns = COLUMNS_TO_KEEP + ["price_per_m2", "room_density", "expenses_ratio"]
-    features = df[feature_columns].copy()
+        # ✅ CORREGIR: Las columnas categóricas ya están codificadas, no incluirlas dos veces
+        feature_columns = [col for col in COLUMNS_TO_KEEP if col not in CATEGORICAL_COLUMNS] + [
+            "price_per_m2", "room_density", "expenses_ratio"
+        ] + CATEGORICAL_COLUMNS  # Las categóricas ya están codificadas
 
-    payload = {
-        "X": features,
-        "y": target,
-        "feature_columns": feature_columns,
-        "percentiles": percentiles,
-    }
-    joblib.dump(payload, TRAIN_DATA_PATH)
-    LOGGER.info(
-        "Prepared dataset saved to %s with %s rows and %s features",
-        TRAIN_DATA_PATH,
-        len(features),
-        len(feature_columns),
-    )
+        features = df[feature_columns].copy()
 
-    return features, target, feature_columns, encoders, percentiles
+        payload = {
+            "X": features,
+            "y": target,
+            "feature_columns": feature_columns,
+            "percentiles": percentiles,
+        }
+        joblib.dump(payload, TRAIN_DATA_PATH)
+        LOGGER.info(
+            "✅ Prepared dataset saved to %s with %s rows and %s features",
+            TRAIN_DATA_PATH,
+            len(features),
+            len(feature_columns),
+        )
 
+        return features, target, feature_columns, encoders, percentiles
+        
+    except Exception as e:
+        LOGGER.error("❌ Error in data preparation: %s", str(e))
+        raise
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)

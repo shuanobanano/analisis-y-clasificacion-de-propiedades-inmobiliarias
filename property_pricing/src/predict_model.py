@@ -9,8 +9,12 @@ import joblib
 import numpy as np
 import pandas as pd
 
-from .data_preparation import MODELS_PATH, NUMERIC_COLUMNS, CATEGORICAL_COLUMNS
+# Cambiar import relativo por absoluto
+import sys
+import os
+sys.path.append(os.path.dirname(__file__))
 
+from data_preparation import MODELS_PATH, NUMERIC_COLUMNS, CATEGORICAL_COLUMNS
 REQUIRED_FIELDS = {
     "price",
     "surface_covered",

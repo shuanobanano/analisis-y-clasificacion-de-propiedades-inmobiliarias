@@ -19,12 +19,12 @@ from sklearn.model_selection import StratifiedKFold, cross_val_score, train_test
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
-from .data_preparation import (
-    CATEGORICAL_COLUMNS,
-    NUMERIC_COLUMNS,
-    MODELS_PATH,
-    prepare_data,
-)
+# Cambiar import relativo por absoluto
+import sys
+import os
+sys.path.append(os.path.dirname(__file__))
+
+from data_preparation import NUMERIC_COLUMNS, MODELS_PATH, prepare_data
 
 
 LOGGER = logging.getLogger(__name__)
@@ -52,7 +52,7 @@ EARLY_STOPPING_PATIENCE = 2
 EARLY_STOPPING_MIN_DELTA = 1e-3
 NUMERIC_DRIFT_THRESHOLD = 0.5
 CATEGORICAL_DRIFT_THRESHOLD = 0.2
-
+CATEGORICAL_COLUMNS = ["neighborhood", "property_type"]
 
 def _build_cross_validation_pipeline(n_estimators: int) -> Pipeline:
     numeric_transformer = Pipeline(steps=[("scaler", StandardScaler())])
@@ -225,7 +225,21 @@ def train_model() -> Tuple[RandomForestClassifier, Dict[str, float]]:
     """Train the RandomForest classifier and persist all artefacts."""
 
     features, target, feature_columns, _, percentiles = prepare_data()
+    
+    # ✅ VALIDACIÓN CRÍTICA: Verificar que hay datos para entrenar
+    if len(features) == 0:
+        raise ValueError("No hay datos para entrenar el modelo. El dataset está vacío.")
+        
     LOGGER.info("Starting training pipeline with %s samples", len(features))
+
+    # ✅ VERIFICAR: Asegurar que las columnas categóricas están en los datos
+    LOGGER.info("Feature columns: %s", feature_columns)
+    LOGGER.info("Data types: %s", features.dtypes)
+    
+    # Verificar que todas las columnas requeridas existen
+    missing_columns = [col for col in feature_columns if col not in features.columns]
+    if missing_columns:
+        raise ValueError(f"Missing columns in features: {missing_columns}")
 
     X_train, X_test, y_train, y_test = train_test_split(
         features,
@@ -234,15 +248,27 @@ def train_model() -> Tuple[RandomForestClassifier, Dict[str, float]]:
         random_state=42,
         stratify=target,
     )
+    
+    # ✅ VERIFICACIÓN ADICIONAL: Que el split no esté vacío
+    if len(X_train) == 0 or len(X_test) == 0:
+        raise ValueError(
+            f"Train/Test split resulted in empty sets. Train: {len(X_train)}, Test: {len(X_test)}"
+        )
+        
     LOGGER.info("Train/Test split: %s train rows, %s test rows", len(X_train), len(X_test))
 
+    # Resto del código permanece igual...
     scaler = StandardScaler()
     X_train_scaled = X_train.copy()
     X_test_scaled = X_test.copy()
-    X_train_scaled[NUMERIC_COLUMNS] = scaler.fit_transform(X_train_scaled[NUMERIC_COLUMNS])
-    X_test_scaled[NUMERIC_COLUMNS] = scaler.transform(X_test_scaled[NUMERIC_COLUMNS])
-    LOGGER.debug("Scaler fitted on numeric columns: %s", NUMERIC_COLUMNS)
-
+    
+    # ✅ FILTRAR: Solo escalar columnas numéricas que existen
+    numeric_cols_to_scale = [col for col in NUMERIC_COLUMNS if col in X_train_scaled.columns]
+    LOGGER.info("Scaling numeric columns: %s", numeric_cols_to_scale)
+    
+    X_train_scaled[numeric_cols_to_scale] = scaler.fit_transform(X_train_scaled[numeric_cols_to_scale])
+    X_test_scaled[numeric_cols_to_scale] = scaler.transform(X_test_scaled[numeric_cols_to_scale])
+    
     drift_metrics = _assess_distribution_shift(X_train, X_test, y_train, y_test)
 
     _, early_summary = _train_with_early_stopping(X_train_scaled, y_train)
