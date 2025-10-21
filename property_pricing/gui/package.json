@@ -1,0 +1,20 @@
+{
+  "name": "property-pricing-gui",
+  "version": "1.0.0",
+  "description": "Interfaz Electron para visualizar resultados del clasificador de precios de propiedades",
+  "main": "main.js",
+  "type": "module",
+  "scripts": {
+    "start": "electron ."
+  },
+  "keywords": [
+    "electron",
+    "machine-learning",
+    "property-pricing"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^28.2.0"
+  }
+}
