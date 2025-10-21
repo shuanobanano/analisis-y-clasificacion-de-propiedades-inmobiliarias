@@ -1,0 +1,178 @@
+:root {
+  color-scheme: light dark;
+  font-family: 'Segoe UI', Tahoma, sans-serif;
+  --primary-color: #2563eb;
+  --background: #f5f5f5;
+  --card-background: #ffffff;
+  --text-color: #1f2937;
+  --error-color: #dc2626;
+  --success-color: #16a34a;
+  --badge-barato: #16a34a;
+  --badge-regular: #f59e0b;
+  --badge-caro: #dc2626;
+}
+
+body {
+  margin: 0;
+  background: var(--background);
+  color: var(--text-color);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+header,
+footer {
+  padding: 1.5rem 2rem;
+  background: #111827;
+  color: #f9fafb;
+}
+
+header h1 {
+  margin: 0;
+  font-size: 2rem;
+}
+
+main {
+  flex: 1;
+  padding: 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.upload-panel {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+button {
+  padding: 0.75rem 1.5rem;
+  border-radius: 0.5rem;
+  border: none;
+  background: #374151;
+  color: #f9fafb;
+  cursor: pointer;
+  transition: transform 0.1s ease-in-out, box-shadow 0.1s ease-in-out;
+}
+
+button.primary {
+  background: var(--primary-color);
+}
+
+button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 24px rgba(37, 99, 235, 0.2);
+}
+
+button:active {
+  transform: translateY(1px);
+}
+
+#file-name {
+  font-style: italic;
+}
+
+.status {
+  padding: 1rem;
+  border-radius: 0.75rem;
+  background: #e5e7eb;
+  font-weight: 600;
+}
+
+.status.loading {
+  background: #fcd34d;
+  color: #78350f;
+}
+
+.status.success {
+  background: #dcfce7;
+  color: var(--success-color);
+}
+
+.status.error {
+  background: #fee2e2;
+  color: var(--error-color);
+}
+
+.results {
+  display: grid;
+  gap: 1.5rem;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+}
+
+.card {
+  background: var(--card-background);
+  border-radius: 1rem;
+  padding: 1.5rem;
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.12);
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.card header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.badge {
+  padding: 0.35rem 0.75rem;
+  border-radius: 999px;
+  color: #fff;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.badge.barato {
+  background: var(--badge-barato);
+}
+
+.badge.regular {
+  background: var(--badge-regular);
+}
+
+.badge.caro {
+  background: var(--badge-caro);
+}
+
+.card details {
+  background: #f3f4f6;
+  padding: 0.75rem;
+  border-radius: 0.75rem;
+}
+
+.card details summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.card pre {
+  margin: 0;
+  white-space: pre-wrap;
+  font-family: 'Fira Code', monospace;
+}
+
+.card.error {
+  border: 1px solid var(--error-color);
+}
+
+.error-message {
+  color: var(--error-color);
+  font-weight: 600;
+}
+
+.probability-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 0.5rem;
+}
+
+footer {
+  text-align: center;
+}

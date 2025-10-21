@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Clasificador de Propiedades</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header>
+      <h1>Clasificador de Propiedades</h1>
+      <p>
+        Cargue un archivo en formato JSON, CSV, JOBLIB o Markdown para obtener
+        la clasificación del modelo entrenado.
+      </p>
+    </header>
+    <main>
+      <section class="upload-panel">
+        <button id="select-file">Seleccionar archivo</button>
+        <span id="file-name">Ningún archivo seleccionado</span>
+        <button id="process" class="primary">Procesar</button>
+      </section>
+      <section class="status" id="status"></section>
+      <section class="results" id="results"></section>
+    </main>
+    <footer>
+      <small>
+        El modelo utiliza los campos: price, surface_covered, surface_total,
+        rooms, floor, expenses, neighborhood y property_type.
+      </small>
+    </footer>
+    <script src="renderer.js"></script>
+  </body>
+</html>
