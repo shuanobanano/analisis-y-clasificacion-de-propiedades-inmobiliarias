@@ -1,24 +1,7 @@
 OBJECTIVE
 Build a robust property price classification system that trains on Kaggle data and classifies properties as "BARATO", "REGULAR", or "CARO" via JSON input through a GUI interface.
 
-📁 PROJECT STRUCTURE - STRICT REQUIREMENTS
-text
-property_pricing/
-├── data/
-│   ├── property_prices.csv (from Kaggle - MUST DOWNLOAD FIRST)
-│   ├── train.pkl (auto-generated)
-│   └── test_properties.jsonl (for testing)
-├── models/
-│   ├── price_classifier.pkl
-│   ├── model_columns.pkl
-│   ├── scaler.pkl
-│   ├── encoders.pkl
-│   └── confusion_matrix.png
-└── src/
-    ├── data_preparation.py
-    ├── train_model.py
-    ├── predict_model.py
-    └── run_pipeline.py
+
 🔧 TECHNICAL SPECIFICATIONS - DO NOT DEVIATE
 DEPENDENCIES (requirements.txt)
 txt
@@ -277,5 +260,6 @@ Predictions generate detailed, actionable reports
 System handles edge cases gracefully
 
 All files are properly saved and loaded
+
 
 NOTE TO AGENT: Follow this specification EXACTLY. Do not modify hyperparameters, file structure, or data processing steps without explicit approval. This ensures consistency and reproducibility across all implementations.
