@@ -26,6 +26,17 @@ COLUMN_MAPPING = {
     "barrio": "neighborhood",
 }
 
+STANDARDIZED_COLUMNS = {
+    "price",
+    "surface_covered",
+    "surface_total",
+    "floor",
+    "rooms",
+    "expenses",
+    "neighborhood",
+    "property_type",
+}
+
 COLUMNS_TO_KEEP = [
     "price",
     "surface_covered",
@@ -74,9 +85,37 @@ def _load_dataset(csv_path: Path) -> pd.DataFrame:
 
 
 def _rename_columns(df: pd.DataFrame) -> pd.DataFrame:
+    if STANDARDIZED_COLUMNS.issubset(df.columns):
+        LOGGER.info("Detected dataset in standardized format. No renaming required.")
+        return df
+
     rename_map = {col: new for col, new in COLUMN_MAPPING.items() if col in df.columns}
+    if not rename_map:
+        LOGGER.error(
+            "Dataset columns %s do not match expected formats.", list(df.columns)
+        )
+        raise DataPreparationError(
+            "❌ Error: El dataset no contiene las columnas requeridas para el formato "
+            "original ni el actualizado."
+        )
+
     LOGGER.debug("Applying column rename mapping: %s", rename_map)
     df = df.rename(columns=rename_map)
+    return df
+
+
+def _coerce_numeric_columns(df: pd.DataFrame) -> pd.DataFrame:
+    numeric_columns = [
+        "price",
+        "surface_covered",
+        "surface_total",
+        "floor",
+        "rooms",
+        "expenses",
+    ]
+    for column in numeric_columns:
+        if column in df.columns:
+            df[column] = pd.to_numeric(df[column], errors="coerce")
     return df
 
 
@@ -88,7 +127,8 @@ def _select_columns(df: pd.DataFrame) -> pd.DataFrame:
             f"❌ Error: Columnas requeridas ausentes en el dataset: {', '.join(missing)}"
         )
     selection = df[COLUMNS_TO_KEEP].copy()
-    LOGGER.debug("Selected required columns. Shape: %%s", selection.shape)
+    selection = _coerce_numeric_columns(selection)
+    LOGGER.debug("Selected required columns. Shape: %s", selection.shape)
     return selection
 
 
@@ -111,44 +151,62 @@ def _clean_data(df: pd.DataFrame) -> pd.DataFrame:
     after_positive_price = len(df_clean)
     LOGGER.info("After positive price filter: %s rows", after_positive_price)
     
+    # ✅ CORREGIDO: Imputar valores nulos en otras columnas numéricas antes de usar
+    # estos valores para completar superficies faltantes.
+    numeric_imputations = {"floor": 0, "rooms": 1, "expenses": 0}
+    for column, default_value in numeric_imputations.items():
+        if column in df_clean.columns:
+            null_count = df_clean[column].isna().sum()
+            if null_count > 0:
+                df_clean[column] = df_clean[column].fillna(default_value)
+                LOGGER.info(
+                    "Imputed %s null values in column '%s' with default %s",
+                    null_count,
+                    column,
+                    default_value,
+                )
+
+    # Rooms must be at least one to avoid zero divisions and unrealistic surfaces.
+    if "rooms" in df_clean.columns:
+        below_min_rooms = (df_clean["rooms"] < 1).sum()
+        if below_min_rooms:
+            LOGGER.info(
+                "Adjusted %s rows with rooms < 1 to the minimum value 1",
+                below_min_rooms,
+            )
+        df_clean["rooms"] = df_clean["rooms"].clip(lower=1)
+
     # ✅ NUEVO: Manejar surface_covered y surface_total nulos
-    # Si surface_covered está vacío, usar surface_total como fallback
-    df_clean["surface_covered"] = df_clean["surface_covered"].fillna(df_clean["surface_total"])
-    
-    # Si surface_total está vacío, usar surface_covered como fallback  
-    df_clean["surface_total"] = df_clean["surface_total"].fillna(df_clean["surface_covered"])
-    
-    # Si ambas están vacías, usar un valor por defecto basado en rooms
+    df_clean["surface_covered"] = df_clean["surface_covered"].fillna(
+        df_clean["surface_total"]
+    )
+    df_clean["surface_total"] = df_clean["surface_total"].fillna(
+        df_clean["surface_covered"]
+    )
+
     mask_both_empty = df_clean["surface_covered"].isna() & df_clean["surface_total"].isna()
     if mask_both_empty.any():
-        # Estimar superficie basada en número de habitaciones (aproximación)
-        default_surface = df_clean["rooms"] * 30  # 30m² por habitación como estimación
+        rooms_reference = df_clean.loc[mask_both_empty, "rooms"].fillna(1)
+        default_surface = rooms_reference * 30  # 30m² por habitación como estimación
         df_clean.loc[mask_both_empty, "surface_covered"] = default_surface
         df_clean.loc[mask_both_empty, "surface_total"] = default_surface
-        LOGGER.info("Estimated surface for %s rows with missing surface data", mask_both_empty.sum())
-    
+        LOGGER.info(
+            "Estimated surface for %s rows with missing surface data",
+            mask_both_empty.sum(),
+        )
+
+    df_clean["surface_total"] = np.maximum(
+        df_clean["surface_total"], df_clean["surface_covered"]
+    )
+
     # Filtrar por superficie positiva
     df_clean = df_clean[(df_clean["surface_covered"] > 0) & (df_clean["surface_total"] > 0)]
     after_surface_filter = len(df_clean)
     LOGGER.info("After surface filter: %s rows", after_surface_filter)
     
-    # ✅ CORREGIDO: Imputar valores nulos en otras columnas numéricas
-    numeric_columns_to_impute = ["floor", "rooms", "expenses"]
-    for col in numeric_columns_to_impute:
-        if col in df_clean.columns:
-            null_count = df_clean[col].isna().sum()
-            if null_count > 0:
-                if col == "floor":
-                    df_clean[col] = df_clean[col].fillna(0)  # Planta baja por defecto
-                elif col == "rooms":
-                    df_clean[col] = df_clean[col].fillna(1)  # Mínimo 1 habitación
-                elif col == "expenses":
-                    df_clean[col] = df_clean[col].fillna(0)  # Sin expensas por defecto
-                LOGGER.info("Imputed %s null values in column '%s'", null_count, col)
-    
     # Eliminar outliers de precio (conservador)
     if after_surface_filter > 0:
-        price_threshold = df_clean["price"].quantile(0.95)
+        price_threshold = df_clean["price"].quantile(0.99)
         df_clean = df_clean[df_clean["price"] <= price_threshold]
         after_outliers = len(df_clean)
         LOGGER.info("After outlier removal: %s rows (threshold: $%.2f)", after_outliers, price_threshold)
